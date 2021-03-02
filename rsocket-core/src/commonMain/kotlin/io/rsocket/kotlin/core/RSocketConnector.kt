@@ -19,11 +19,12 @@ package io.rsocket.kotlin.core
 import io.rsocket.kotlin.*
 import io.rsocket.kotlin.frame.*
 import io.rsocket.kotlin.frame.io.*
+import io.rsocket.kotlin.internal.*
 import io.rsocket.kotlin.logging.*
 import io.rsocket.kotlin.transport.*
 
 @OptIn(TransportApi::class)
-class RSocketConnector internal constructor(
+public class RSocketConnector internal constructor(
     private val loggerFactory: LoggerFactory,
     private val interceptors: Interceptors,
     private val connectionConfigProvider: () -> ConnectionConfig,
@@ -31,7 +32,7 @@ class RSocketConnector internal constructor(
     private val reconnectPredicate: ReconnectPredicate?,
 ) {
 
-    suspend fun connect(transport: ClientTransport): RSocket = when (reconnectPredicate) {
+    public suspend fun connect(transport: ClientTransport): RSocket = when (reconnectPredicate) {
         null -> connectOnce(transport)
         else -> ReconnectableRSocket(
             logger = loggerFactory.logger("io.rsocket.kotlin.connection"),
@@ -43,18 +44,22 @@ class RSocketConnector internal constructor(
     private suspend fun connectOnce(transport: ClientTransport): RSocket {
         val connection = transport.connect().wrapConnection()
         val connectionConfig = connectionConfigProvider()
+        val setupFrame = SetupFrame(
+            version = Version.Current,
+            honorLease = false,
+            keepAlive = connectionConfig.keepAlive,
+            resumeToken = null,
+            payloadMimeType = connectionConfig.payloadMimeType,
+            payload = connectionConfig.setupPayload
+        )
+        connection.sendFrame(setupFrame)
 
-        return connection.connect(isServer = false, interceptors, connectionConfig, acceptor) {
-            val setupFrame = SetupFrame(
-                version = Version.Current,
-                honorLease = false,
-                keepAlive = connectionConfig.keepAlive,
-                resumeToken = null,
-                payloadMimeType = connectionConfig.payloadMimeType,
-                payload = connectionConfig.setupPayload
-            )
-            connection.sendFrame(setupFrame)
-        }
+        return connection.connect(
+            isServer = false,
+            interceptors = interceptors,
+            connectionConfig = connectionConfig,
+            acceptor = acceptor
+        )
     }
 
     private fun Connection.wrapConnection(): Connection =

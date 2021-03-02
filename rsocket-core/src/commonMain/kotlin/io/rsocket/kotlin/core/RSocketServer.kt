@@ -19,21 +19,22 @@ package io.rsocket.kotlin.core
 import io.rsocket.kotlin.*
 import io.rsocket.kotlin.frame.*
 import io.rsocket.kotlin.frame.io.*
+import io.rsocket.kotlin.internal.*
 import io.rsocket.kotlin.logging.*
 import io.rsocket.kotlin.transport.*
 
 @OptIn(TransportApi::class)
-class RSocketServer internal constructor(
+public class RSocketServer internal constructor(
     private val loggerFactory: LoggerFactory,
     private val interceptors: Interceptors,
 ) {
 
-    fun <T> bind(
+    public fun <T> bind(
         transport: ServerTransport<T>,
         block: suspend ConnectionAcceptorContext.() -> RSocket
     ): T = bind(transport, ConnectionAcceptor(block))
 
-    fun <T> bind(
+    public fun <T> bind(
         transport: ServerTransport<T>,
         acceptor: ConnectionAcceptor,
     ): T = transport.start {
@@ -50,7 +51,12 @@ class RSocketServer internal constructor(
             setupPayload = setupFrame.payload
         )
         try {
-            connect(isServer = true, interceptors, connectionConfig, acceptor)
+            connect(
+                isServer = true,
+                interceptors = interceptors,
+                connectionConfig = connectionConfig,
+                acceptor = acceptor
+            )
         } catch (e: Throwable) {
             failSetup(RSocketError.Setup.Rejected(e.message ?: "Rejected by server acceptor"))
         }
